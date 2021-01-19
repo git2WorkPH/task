@@ -1,0 +1,20 @@
+{
+  "name": "storesync",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "express": "^4.17.1",
+    "mysql": "^2.18.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.11",
+    "@types/mysql": "^2.15.17"
+  }
+}

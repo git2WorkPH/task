@@ -1,13 +1,13 @@
 
-import * as mysql from 'mysql'
+import * as mysql from 'mysql2'
 
 export function OpenConnection(){
 
 const connection = mysql.createConnection({
     host            : '127.0.0.1',
-    user            : 'root',
-    password        : '123b!lue456',
-    database        : 'Bhyve'
+    user            : process.env.sql_user,
+    password        : process.env.sql_pwd,
+    database        : process.env.sql_dbname
 })
 
 connection.connect(function(err) {

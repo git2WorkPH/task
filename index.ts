@@ -1,8 +1,12 @@
-import * as mysql from 'mysql'
+import * as _ from 'lodash'
 import * as fs from 'fs'
 import * as axios from 'axios'
 import { IStore } from './model/store'
-import { OpenConnection } from './serivces/sql.service'
+import { OpenConnection, SaveToDB } from './serivces/sql.service'
+import { IStoreOperatingHours } from './model/storeOperationHours'
+import { IStorePickupTime } from './model/storePickupTime'
+import {Sequelize} from 'sequelize'
+ 
 
 /**
  * TODO:
@@ -16,101 +20,92 @@ import { OpenConnection } from './serivces/sql.service'
  * 6. save the data to mysql database - Done
  */
 
-  
-  const connection = OpenConnection()
-    
-  let endPoint = 'http://gygapi.xchangefusion.com/api/v1/terminals/AllLocations?api_key=gygcw2017!'
-//   
-  let insertSQL = 'Insert into Store (posStoreId,name,description,timezone,streetAddress,city,postcode,state,longitude,latitude,country,phone,email,isActive) VALUE '
-  let operatingHourSQL = 'Insert into StoreOperatingHours (storeId,dayOfWeek,openingTime,closingTime) VALUE '
-  let pickUpTimeSQL =  'Insert into StoreOperatingHours (storeId,dayOfWeek,from,to) VALUE ' 
 
+export let sequelize:Sequelize;
+ sequelize = new Sequelize({
+    host:'127.0.0.1',
+    username:'root',
+    password:'123b!lue456',
+    database:'Bhyve',
+    dialect:'mysql',
+})
+  let endPoint =  process.env.endPoint!
+ 
   if(!fs.existsSync('./output')){
     fs.mkdirSync('./output')
-}
+    }
 
   const sendGetRequest = async () => {
     try {
 
-        const resp = await axios.default.get(endPoint);
-        const locations: any[] =  resp.data.Items
+        await sequelize.authenticate();
+        console.log('Connection has been established successfully.');
 
-        locations.map(location =>{
+        const resp = await axios.default.get('http://gygapi.xchangefusion.com/api/v1/terminals/AllLocations?api_key=gygcw2017!');
+        const items:any[]=  resp.data.Items
+        const storeObject: IStore[] = items.map(ele=>{
 
-            connection.beginTransaction(function(err){
-                if(err) throw new Error(err.stack)
-    
-                // TODO: check if the locationNo existing or not
-                connection.query(`Select * FROM Store Where posStoreId =  ${location.LocationNo}`, (err, results)=>{
-                    if(err) throw new Error(err.stack)
-                        
-                    if(!results?.length){
+            let operatingHours: IStoreOperatingHours[]=[];
 
-                        console.log('unique',results)
-                        const value = `(
-                            ${location.LocationNo},
-                            '${location.LocationFriendlyName}',
-                            '${location.LocationDescription }',
-                            '${location.TimeZoneId === null ? "''" : location.TimeZoneId}',
-                            '${location.StreetAddress === null ? "''" : location.StreetAddress}',
-                            '${location.City === null ? "''" : location.City}',
-                            ${location.PostCode === null ? null : location.PostCode},
-                            '${location.State === null ? "''" : location.State}',
-                            ${location.Longitude === null ? null : Number.isInteger(location.Longitude)? 0 : location.Longitude  },
-                            ${location.Latitude=== null ? null : Number.isInteger(location.Longitude)? 0 : location.Latitude  },
-                            'Australia',
-                            '${location.LocationPhone=== null ? "''" : location.LocationPhone}',
-                            '${location.LocationEmail === null ? "''" : location.LocationEmail}',
-                            ${location.IsActive});`    
-                        
-                            connection.query(insertSQL+value,(err,results)=>{
-                                if(err) {
-                                    throw new Error(err.stack)
+            if(ele.RegularHours.length>0){
+                operatingHours = ele.RegularHours?.map((operatingHour:any) =>{
+                        return {
+                                tempId:operatingHour.LocationId,
+                                dayOfWeek:operatingHour.DayOfWeek,
+                                openingTime:operatingHour.OpeningTime,
+                                closingTime:operatingHour.ClosingTime
                                 }
-                                console.log('insert',results.insertId) //get the insertId and assign it to the storeId to storeOperatingHours and storePickupTime
-                             
-                                // if(location.RegularHours){
-                                //     console.log(location.RegularHours)
-                                //     location.RegularHours.map((regularHour:any)=>{
-                                //         console.log('regularHours',regularHour)
-                                //         const value = `(
-                                //             ${results.insertId},
-                                //             ${regularHour.DayOfWeek},
-                                //             '${regularHour.OpeningTime}',
-                                //             '${regularHour.ClosingTime}'
-                                //         );`
-                                        
-                                //         connection.query(operatingHourSQL+value,(err,results)=>{
-                                //             if(err){ 
-                                //                 console.log('operatingHours',operatingHourSQL+value)
-                                //                 fs.writeFileSync('./output/storeOperatingHours.sql',operatingHourSQL+value)
-                                //                 connection.rollback()
-                                //                 throw new Error(err.stack)
-                                //             }
-                                //             console.log('insert operating hours',results)
-                                //         })    
+                })
+            }
 
-                                //     })
-                                // }
-
-                                connection.commit(function(err){
-                                    if(err){
-                                        connection.rollback(()=>{
-                                            throw new Error(err.stack)
-                                        })
-                                    }
-                                    console.log('added successfully')
-                                  
-                                })
-                            })
-                            
-                            
-                    }else{
-                        console.log('exist',results)
-                    }
-                })  
-            })  
+            return {
+                posStoreId: ele.LocationNo,
+                name:ele.LocationFriendlyName,
+                description:ele.LocationDescription,
+                timezone:!ele.TimeZoneId ? null: ele.TimeZoneId,
+                streetAddress:!ele.StreetAddress ? null : ele.StreetAddress,
+                suburb:!ele.Suburb ? null : ele.Suburb,
+                country:'Australia',
+                postCode:!ele.PostCode ? null : ele.PostCode,
+                state:!ele.State ? "''" : ele.State,
+                longitude:!ele.Longitude ? null : Number.isInteger(ele.Longitude)? 0 : ele.Longitude , 
+                latitude:!ele.Latitude ? null : Number.isInteger(ele.Latitude)? 0 : ele.Latitude,
+                phone:!ele.LocationPhone ? "''" : ele.LocationPhone,
+                email:!ele.LocationEmail ? "''" : ele.LocationEmail,
+                isActive:ele.IsActive,
+                regularHours:operatingHours
+            }
         })
+
+        fs.writeFileSync('./output/location.json',JSON.stringify(storeObject))
+        const regularHours = _.flatten( items.map(ele=>ele.RegularHours).filter(x=>x.length>0))
+        let operatingHoursObject: IStoreOperatingHours[] = [];
+        if(regularHours?.length > 0){
+
+            operatingHoursObject = regularHours?.map(ele=>{
+              
+                    return {
+                        dayOfWeek:ele.DayOfWeek,
+                        openingTime:ele.OpeningTime,
+                        closingTime:ele.ClosingTime
+                    }
+            })
+        }
+        
+        const pickUpTimes = _.flatten(items.map(ele=>ele?.PickUpTimes)?.filter(x=>x?.length>0))
+        let pickUpTimeObject: IStorePickupTime[]= [];
+        if(pickUpTimes?.length > 0){
+           pickUpTimeObject= pickUpTimes?.map(ele=>{
+                    return {
+                        tempId:ele.LocationId,
+                        dayOfWeek:ele.DayOfWeek,
+                        from:ele.From,
+                        to:ele.To
+                    }
+            })
+        }
+     
+       SaveToDB(storeObject,operatingHoursObject,pickUpTimeObject)
 
     } catch (err) {
         console.error(err);
@@ -118,16 +113,3 @@ import { OpenConnection } from './serivces/sql.service'
 };
 
 sendGetRequest() 
-
-
-type StoreOperatingHours = {
-    dayOfWeek:number;
-    openingTime:string;
-    closingTime:string;
-}
-
-type StorePickupTime = {
-    dayOfWeek:number;
-    From:string;
-    To:string;
-}

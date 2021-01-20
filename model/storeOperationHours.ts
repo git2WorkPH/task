@@ -2,7 +2,8 @@
 
 
 export interface IStoreOperatingHours{
-    storeId:number;
+    tempId?:number;
+    storeId?:number;
     dayOfWeek:number;
     openingTime:string;
     closingTime:string;

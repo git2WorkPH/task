@@ -11,10 +11,16 @@
   "dependencies": {
     "axios": "^0.21.1",
     "express": "^4.17.1",
-    "mysql": "^2.18.1"
+    "lodash": "^4.17.20",
+    "mysql": "^2.18.1",
+    "mysql2": "^2.2.5",
+    "request-promise-native": "^1.0.9",
+    "sequelize": "^6.4.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.11",
-    "@types/mysql": "^2.15.17"
+    "@types/lodash": "^4.14.168",
+    "@types/mysql": "^2.15.17",
+    "@types/request-promise-native": "^1.0.17"
   }
 }

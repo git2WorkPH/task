@@ -1,7 +1,6 @@
-
-
 export interface IStorePickupTime{
-    storeId:number;
+    tempId?:number;
+    storeId?:number;
     dayOfWeek:number;
     from:string;
     to:string;

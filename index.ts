@@ -2,10 +2,11 @@ import * as _ from 'lodash'
 import * as fs from 'fs'
 import * as axios from 'axios'
 import { IStore } from './model/store'
-import { OpenConnection, SaveToDB } from './serivces/sql.service'
+import { connection, SaveToDB } from './serivces/sql.service'
 import { IStoreOperatingHours } from './model/storeOperationHours'
 import { IStorePickupTime } from './model/storePickupTime'
 import {Sequelize} from 'sequelize'
+import Connection from 'mysql2/typings/mysql/lib/Connection'
  
 
 /**
@@ -38,75 +39,48 @@ export let sequelize:Sequelize;
   const sendGetRequest = async () => {
     try {
 
-        await sequelize.authenticate();
-        console.log('Connection has been established successfully.');
+        // await sequelize.authenticate();
+        // console.log('Connection has been established successfully.');
 
         const resp = await axios.default.get('http://gygapi.xchangefusion.com/api/v1/terminals/AllLocations?api_key=gygcw2017!');
         const items:any[]=  resp.data.Items
-        const storeObject: IStore[] = items.map(ele=>{
+        const storeObject: IStore[] = items.map(item=>{
 
             let operatingHours: IStoreOperatingHours[]=[];
-
-            if(ele.RegularHours.length>0){
-                operatingHours = ele.RegularHours?.map((operatingHour:any) =>{
-                        return {
-                                tempId:operatingHour.LocationId,
-                                dayOfWeek:operatingHour.DayOfWeek,
-                                openingTime:operatingHour.OpeningTime,
-                                closingTime:operatingHour.ClosingTime
-                                }
+            let pickUpTimes: IStorePickupTime[]= [];
+            if(item.RegularHours.length > 1 ){
+                operatingHours = item.RegularHours?.map((operatingHour:any) =>{
+                    return {
+                            dayOfWeek:operatingHour.DayOfWeek ,
+                            openingTime:operatingHour.OpeningTime,
+                            closingTime:operatingHour.ClosingTime
+                            }
+                    
                 })
             }
 
             return {
-                posStoreId: ele.LocationNo,
-                name:ele.LocationFriendlyName,
-                description:ele.LocationDescription,
-                timezone:!ele.TimeZoneId ? null: ele.TimeZoneId,
-                streetAddress:!ele.StreetAddress ? null : ele.StreetAddress,
-                suburb:!ele.Suburb ? null : ele.Suburb,
+                posStoreId: item.LocationNo,
+                name:item.LocationFriendlyName,
+                description:item.LocationDescription,
+                timezone:!item.TimeZoneId ? null: item.TimeZoneId,
+                streetAddress:!item.StreetAddress ? null : item.StreetAddress,
+                suburb:!item.Suburb ? null : item.Suburb,
                 country:'Australia',
-                postCode:!ele.PostCode ? null : ele.PostCode,
-                state:!ele.State ? "''" : ele.State,
-                longitude:!ele.Longitude ? null : Number.isInteger(ele.Longitude)? 0 : ele.Longitude , 
-                latitude:!ele.Latitude ? null : Number.isInteger(ele.Latitude)? 0 : ele.Latitude,
-                phone:!ele.LocationPhone ? "''" : ele.LocationPhone,
-                email:!ele.LocationEmail ? "''" : ele.LocationEmail,
-                isActive:ele.IsActive,
-                regularHours:operatingHours
+                postCode:!item.PostCode ? null : item.PostCode,
+                state:!item.State ? "''" : item.State,
+                longitude:!item.Longitude ? null : Number.isInteger(item.Longitude)? 0 : item.Longitude , 
+                latitude:!item.Latitude ? null : Number.isInteger(item.Latitude)? 0 : item.Latitude,
+                phone:!item.LocationPhone ? "''" : item.LocationPhone,
+                email:!item.LocationEmail ? "''" : item.LocationEmail,
+                isActive:item.IsActive,
+                regularHours:operatingHours,
             }
         })
 
-        fs.writeFileSync('./output/location.json',JSON.stringify(storeObject))
-        const regularHours = _.flatten( items.map(ele=>ele.RegularHours).filter(x=>x.length>0))
-        let operatingHoursObject: IStoreOperatingHours[] = [];
-        if(regularHours?.length > 0){
-
-            operatingHoursObject = regularHours?.map(ele=>{
-              
-                    return {
-                        dayOfWeek:ele.DayOfWeek,
-                        openingTime:ele.OpeningTime,
-                        closingTime:ele.ClosingTime
-                    }
-            })
-        }
-        
-        const pickUpTimes = _.flatten(items.map(ele=>ele?.PickUpTimes)?.filter(x=>x?.length>0))
-        let pickUpTimeObject: IStorePickupTime[]= [];
-        if(pickUpTimes?.length > 0){
-           pickUpTimeObject= pickUpTimes?.map(ele=>{
-                    return {
-                        tempId:ele.LocationId,
-                        dayOfWeek:ele.DayOfWeek,
-                        from:ele.From,
-                        to:ele.To
-                    }
-            })
-        }
-     
-       SaveToDB(storeObject,operatingHoursObject,pickUpTimeObject)
-
+        fs.writeFileSync('./output/location.json',JSON.stringify(storeObject,null,3))
+       SaveToDB(storeObject)
+       
     } catch (err) {
         console.error(err);
     }

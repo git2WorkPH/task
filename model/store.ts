@@ -1,4 +1,5 @@
 import { IStoreOperatingHours } from "./storeOperationHours";
+import { IStorePickupTime } from "./storePickupTime";
 
 
 export interface IStore{
@@ -18,6 +19,7 @@ export interface IStore{
     email:string;
     isActive:boolean;
     regularHours?:IStoreOperatingHours[],
+    pickUpTimes?:IStorePickupTime[]
 }
 
 

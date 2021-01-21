@@ -1,13 +1,16 @@
 import * as fs from 'fs'
 import _ from 'lodash'
 import * as mysql from 'mysql'
+import { Sequelize } from 'sequelize/types'
+import { sequelize } from '..'
 import { IStore } from '../model/store'
 import { IStoreOperatingHours } from '../model/storeOperationHours'
 import { IStorePickupTime } from '../model/storePickupTime'
+import * as moment from 'moment'
 
-let insertSQL = 'Insert into Store (posStoreId,name,description,timezone,streetAddress,suburb,postcode,state,longitude,latitude,country,phone,email,isActive) VALUE '
-let operatingHourInsertSQL = 'Insert into StoreOperatingHours (storeId,dayOfWeek,openingTime,closingTime) VALUE '
-let pickUpTimeInsertSQL =  'Insert into StoreOperatingHours (storeId,dayOfWeek,from,to) VALUE ' 
+let insertSQL = 'Insert into Store (posStoreId,name,description,timezone,streetAddress,suburb,postcode,state,longitude,latitude,country,phone,email,isActive,createdOn,createdBy) VALUE '
+let operatingHourInsertSQL = 'Insert into StoreOperatingHours (storeId,dayOfWeek,openingTime,closingTime,createdOn,createdBy) VALUE '
+let pickUpTimeInsertSQL =  'Insert into StorePickUpTime (storeId,dayOfWeek,from,to) VALUE ' 
 
 export function OpenConnection(){
 
@@ -29,15 +32,24 @@ return connection;
 
 }
 
-
-export function SaveToDB(locations:IStore[],operatingHours?:IStoreOperatingHours[],pickUpTime?:IStorePickupTime[]){
+export let connection:mysql.Connection;
+export function SaveToDB(stores:IStore[],pickUpTime?:IStorePickupTime[]){
 
   const connection = OpenConnection()
-  const ids = locations.map(location => location.posStoreId)
+  const posStoreIds = stores.map(location => location.posStoreId)
 
+  const newDate = new Date();
+  const createdOn = newDate.getUTCFullYear() +"/"+ (newDate.getUTCMonth()+1) +"/"+ newDate.getUTCDate() + " " + newDate.getUTCHours() +
+                   ":" + newDate.getUTCMinutes() + ":" + newDate.getUTCSeconds();
 
-  connection.query(`Select * From Store Where posStoreId IN (${ids})`,function(err,results){
-      if(err) throw new Error(err.stack)
+  connection.beginTransaction((err)=>{
+
+    if(err) {
+      throw new Error(err.stack)
+    }
+
+    connection.query(`Select * From Store Where posStoreId IN (${posStoreIds})`,function(err,results){
+      if(err) throw err
       
       //  TODO: implement this later
       // const resultIds = results.map((ele:any)=>ele.id)
@@ -50,11 +62,8 @@ export function SaveToDB(locations:IStore[],operatingHours?:IStoreOperatingHours
       //   })
       // }
       if(results.length === 0){
-        //bulkInsert('Store',locations)
-        // if(operatingHours) bulkInsert('StoreOperatingHours',operatingHours!)
-        // if(pickUpTime) bulkInsert('StorePickupTime',pickUpTime!)
 
-        locations.forEach(location=>{
+        stores.forEach(location=>{
 
          const value = `(
             ${location.posStoreId},
@@ -70,31 +79,49 @@ export function SaveToDB(locations:IStore[],operatingHours?:IStoreOperatingHours
             'Australia',
             '${location.phone=== null ? "''" : location.phone}',
             '${location.email === null ? "''" : location.email}',
-            ${location.isActive});`
+            ${location.isActive},
+            '${createdOn}',
+            ${1});`
+
           connection.query(insertSQL + value, (err,results)=>{
+            if(err) {
+              fs.writeFileSync('./output/store_error.log',insertSQL + value)
+              throw  err
+            }
 
              const insertValue =  location.regularHours?.map(ele=>{
-               return `(${results.insertId},${ele.dayOfWeek},'${ele.openingTime}','${ele.closingTime}')`
+               return `(${results.insertId},${ele.dayOfWeek},'${ele.openingTime}','${ele.closingTime}','${createdOn}',${1})`
              })
-             
-             fs.writeFileSync('./output/operating.sql',operatingHourInsertSQL+insertValue)
-             connection.query(operatingHourInsertSQL+insertValue,(err)=>{
-               if(err) throw new Error(err.stack)
-
-               connection.commit((err)=>{
-                 if(err){
-                    connection.rollback()
+           
+             if(insertValue?.length){
+                connection.query(operatingHourInsertSQL+insertValue,(err)=>{
+                  if(err) {
+                    fs.writeFileSync('./output/operating_error.log',operatingHourInsertSQL+insertValue)
                     throw new Error(err.stack)
-                 }
-               })
-             })
+                    }
+                    
+                })
+             }
+
+            
           })
         })
       }else{
         console.log('No new record added.')
       }
-   
     })
+
+    connection.commit((err)=>{
+      if(err){
+        fs.writeFileSync('./output/error.log',JSON.stringify(err.stack))
+        connection.rollback()
+        throw err
+      }
+      console.log('Sync Successfully')
+    })
+
+  })
+
 }
 
 
